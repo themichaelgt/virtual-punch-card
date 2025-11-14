@@ -94,7 +94,7 @@ src/
 │   │   ├── business/           # Business management APIs
 │   │   └── admin/              # Admin operations
 │   ├── business/               # Business dashboard pages
-│   │   ├── dashboard/          # Main business interface
+│   │   ├── dashboard/          # Main business interface (583 lines)
 │   │   ├── login/              # Business auth
 │   │   ├── complete-signup/    # Establishment creation
 │   │   ├── tags/               # Tag management
@@ -103,9 +103,20 @@ src/
 │   ├── tap/                    # Customer tap interface
 │   ├── t/[token]/              # NFC redirect handler
 │   └── admin/                  # Admin pages
+├── components/
+│   ├── Modal.tsx               # Shared modal wrapper component
+│   ├── ConfirmDialog.tsx       # Custom confirmation dialog
+│   └── business/               # Business-specific components
+│       ├── CreateEventModal.tsx
+│       ├── EditEventModal.tsx
+│       ├── TagManagementModal.tsx
+│       └── ClaimTagsModal.tsx
 └── lib/
     ├── supabase.ts             # Browser & Service clients
-    └── supabase-server.ts      # Server client
+    ├── supabase-server.ts      # Server client
+    ├── rate-limit.ts           # Rate limiting utilities
+    ├── validations.ts          # Zod validation schemas
+    └── toast.ts                # Toast notification utilities
 ```
 
 ## Key Implementation Details
@@ -183,6 +194,116 @@ const supabase = createClientSupabase()
 const { data: { user } } = await supabase.auth.getUser()
 ```
 
+### Input Validation with Zod
+All API routes use Zod validation for request bodies. Pattern:
+
+```typescript
+import { punchSchema, formatValidationError } from '@/lib/validations'
+
+export async function POST(request: NextRequest) {
+  const body = await request.json()
+  const validation = punchSchema.safeParse(body)
+
+  if (!validation.success) {
+    return NextResponse.json({
+      status: 'error',
+      message: formatValidationError(validation.error)
+    }, { status: 400 })
+  }
+
+  const { token, location } = validation.data
+  // Use validated data...
+}
+```
+
+**Available schemas** in `src/lib/validations.ts`:
+- `punchSchema` - Token + optional location
+- `createEventSchema` - Campaign creation
+- `updateEventSchema` - Campaign updates
+- `validateRewardSchema` - Reward code validation
+- `registerTagSchema` - Tag registration
+- `claimTagsSchema` - Tag assignment
+- `updateTagSchema` - Tag updates
+- `createOrderSchema` - Tag orders with shipping
+- `createEstablishmentSchema` - Business profile
+
+### Toast Notifications
+Use toast notifications instead of `alert()`. Pattern:
+
+```typescript
+import { showSuccess, showError, showInfo, showWarning } from '@/lib/toast'
+
+// Success notification
+showSuccess('Campaign created successfully!')
+
+// Error notification
+showError('Failed to save changes', 'Please try again')
+
+// With description
+showSuccess('Order placed', 'Your tags will arrive in 5-7 days')
+
+// Loading state
+const loadingToast = showLoading('Processing...')
+// Later: dismiss(loadingToast)
+
+// Promise-based
+await showPromise(
+  fetchData(),
+  {
+    loading: 'Loading data...',
+    success: 'Data loaded!',
+    error: 'Failed to load data'
+  }
+)
+```
+
+**Never use browser `alert()` or `confirm()` - they block the UI and provide poor UX.**
+
+### Confirmation Dialogs
+Use custom ConfirmDialog instead of `confirm()`. Pattern:
+
+```typescript
+'use client'
+import { useConfirm } from '@/components/ConfirmDialog'
+
+export function MyComponent() {
+  const confirm = useConfirm()
+
+  const handleDelete = async () => {
+    const confirmed = await confirm({
+      message: 'Are you sure you want to delete this campaign?',
+      confirmText: 'Delete',
+      cancelText: 'Cancel',
+      type: 'danger'  // 'info' | 'warning' | 'danger'
+    })
+
+    if (confirmed) {
+      // Proceed with deletion
+    }
+  }
+}
+```
+
+### Modal Components
+Use shared Modal wrapper for consistency. Pattern:
+
+```typescript
+import { Modal } from '@/components/Modal'
+
+export function MyModal({ isOpen, onClose }: Props) {
+  return (
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Modal Title"
+      maxWidth="md"  // 'sm' | 'md' | 'lg' | 'xl' | '2xl'
+    >
+      {/* Modal content */}
+    </Modal>
+  )
+}
+```
+
 ## Path Aliases
 
 `@/*` maps to `./src/*` (configured in `tsconfig.json`)
@@ -196,12 +317,34 @@ Example: `import { createClientSupabase } from '@/lib/supabase'`
 - Server components are async, client components use `'use client'` directive
 - TypeScript strict mode is enabled
 - The application requires RLS (Row Level Security) policies in Supabase to be configured properly
+- **All API routes must have Zod validation** - see `src/lib/validations.ts`
+- **Never use alert() or confirm()** - use toast notifications and ConfirmDialog instead
 
 ---
 
 ## 🚧 Known Issues & Improvement Backlog
 
-**Last Updated**: 2025-01-12
+**Last Updated**: 2025-01-14
+
+### 📊 Current Status
+
+**Code Quality Metrics:**
+- ✅ **All API routes validated** - 11/11 routes have Zod validation
+- ✅ **Zero alert() calls** - Replaced 20+ alerts with toast notifications
+- ✅ **Zero confirm() calls** - Replaced 4 confirms with custom ConfirmDialog
+- ✅ **Dashboard maintainability** - Reduced from 1,062 lines to 583 lines (45% reduction)
+- ✅ **Version control** - Project on GitHub with complete history
+- ⚠️ **TypeScript warnings** - 54 ESLint warnings remaining (non-critical)
+- ⚠️ **Type safety** - 84+ instances of `any` type (needs improvement)
+
+**Recent Accomplishments (Jan 14, 2025):**
+- Implemented comprehensive Zod validation across entire API surface
+- Replaced all browser alerts with professional toast notifications
+- Created reusable Modal and ConfirmDialog components
+- Extracted 4 large modal components from dashboard
+- Set up GitHub repository for version control
+
+**Next Priority:** Customer Dashboard (missing core feature for end users)
 
 ### ✅ Completed
 
@@ -210,90 +353,73 @@ Example: `import { createClientSupabase } from '@/lib/supabase'`
 - [x] **Documentation: README** - Complete setup instructions and project overview
 - [x] **Documentation: SECURITY.md** - Security best practices and guidelines
 - [x] **Build: Next.js 15 compatibility** - Fixed async params in all dynamic routes
+- [x] **Input Validation with Zod** (2025-01-14) - All 11 API routes now have comprehensive Zod validation
+- [x] **Toast Notifications** (2025-01-14) - Replaced all 20+ alert() calls with Sonner toast notifications
+- [x] **Custom Confirmation Dialogs** (2025-01-14) - Replaced all 4 confirm() calls with custom ConfirmDialog component
+- [x] **Extract Large Components** (2025-01-14) - Dashboard reduced from 1,062 lines to 583 lines (45% reduction)
 
 ### 🔴 High Priority (Do Next)
 
-#### 1. Input Validation with Zod
+#### 1. Customer Dashboard
 **Status**: Not started
-**Impact**: Security & data integrity
-**Effort**: Medium (2-3 hours)
+**Impact**: Missing core feature
+**Effort**: Large (6-8 hours)
 
 **Problem**:
-- No validation on API request bodies
-- Could lead to crashes or invalid data in database
-- Prevents injection attacks
+- Customers can't view their cards
+- No history of past rewards
+- Poor user experience
 
 **Tasks**:
-- [ ] Install Zod: `npm install zod`
-- [ ] Create `src/lib/validations.ts` with schemas
-- [ ] Add validation to `/api/punch`
-- [ ] Add validation to `/api/business/events`
-- [ ] Add validation to `/api/business/validate-reward`
-- [ ] Add validation to `/api/business/tags/register`
-- [ ] Add validation to `/api/business/orders`
+- [ ] Create `/app/customer/dashboard/page.tsx`
+- [ ] Create API route: `/api/customer/cards` (list active cards)
+- [ ] Create API route: `/api/customer/rewards` (list rewards)
+- [ ] Design & build card list UI
+- [ ] Design & build reward history UI
+- [ ] Add navigation from tap page
+- [ ] Show progress bars for active cards
+- [ ] Add filters: active/completed
+- [ ] Mobile-responsive design
 
-**Example Pattern**:
-```typescript
-import { z } from 'zod'
-
-const punchSchema = z.object({
-  token: z.string().min(1),
-  location: z.object({
-    latitude: z.number(),
-    longitude: z.number()
-  }).optional()
-})
-
-// In route handler
-const body = await request.json()
-const validated = punchSchema.parse(body) // Throws if invalid
-```
-
-#### 2. Replace alert() with Toast Notifications
+#### 2. Add Proper TypeScript Types
 **Status**: Not started
-**Impact**: User experience
-**Effort**: Small (1-2 hours)
-
-**Problem**:
-- 18+ instances of `alert()` and `confirm()` throughout the app
-- Browser alerts are jarring and unprofessional
-- Can't be styled or customized
-- Block the entire UI
-
-**Tasks**:
-- [ ] Choose toast library (recommend: `sonner` - lightweight & beautiful)
-- [ ] Install: `npm install sonner`
-- [ ] Add `<Toaster />` to root layout
-- [ ] Create `src/lib/toast.ts` utility wrapper
-- [ ] Replace all `alert()` calls in business pages
-- [ ] Replace all `confirm()` calls with custom modal
-- [ ] Test all user flows
-
-**Files with alert()**:
-- `src/app/business/dashboard/page.tsx` (8 instances)
-- `src/app/business/validate-reward/page.tsx` (3 instances)
-- `src/app/business/tags/page.tsx` (2 instances)
-- `src/app/tap/page.tsx` (2 instances)
-- Others
-
-#### 3. Extract Large Components
-**Status**: Not started
-**Impact**: Code maintainability
+**Impact**: Type safety
 **Effort**: Medium (3-4 hours)
 
 **Problem**:
-- `business/dashboard/page.tsx` is 1,047 lines
-- Hard to maintain and test
-- Modals mixed with page logic
+- 84+ instances of `any` type
+- No centralized type definitions
+- Missing Supabase generated types
 
 **Tasks**:
-- [ ] Create `src/components/business/modals/` directory
-- [ ] Extract `CreateEventModal` → separate file
-- [ ] Extract `EditEventModal` → separate file
-- [ ] Extract `TagManagementModal` → separate file
-- [ ] Extract `ClaimTagsModal` → separate file
-- [ ] Create shared modal wrapper component
-- [ ] Move to dashboard: should be ~200 lines max
+- [ ] Generate types from Supabase: `npx supabase gen types typescript --project-id <id> > src/types/database.ts`
+- [ ] Create `src/types/index.ts` for app types
+- [ ] Define types: `Event`, `Establishment`, `Tag`, `Card`, `Punch`, `Reward`
+- [ ] Replace `any` in API routes
+- [ ] Replace `any` in client components
+- [ ] Add strict type checking for Supabase queries
+
+#### 3. Set Up Testing Framework
+**Status**: Not started
+**Impact**: Code quality & confidence
+**Effort**: Large (4-6 hours)
+
+**Tasks**:
+- [ ] Install Vitest: `npm install -D vitest @vitejs/plugin-react`
+- [ ] Install React Testing Library: `npm install -D @testing-library/react @testing-library/jest-dom`
+- [ ] Configure `vitest.config.ts`
+- [ ] Write tests for `src/lib/rate-limit.ts`
+- [ ] Write tests for punch validation logic
+- [ ] Write tests for reward code generation
+- [ ] Set up test database or mocks for Supabase
+- [ ] Add test script to `package.json`
+- [ ] Write E2E tests with Playwright (optional)
+
+**Target Coverage**:
+- Critical: `/api/punch` route (punch logic, validation)
+- Critical: `/api/business/validate-reward` (reward validation)
+- Important: Rate limiting logic
+- Important: Utility functions
 
 ### 🟡 Medium Priority
 
@@ -395,70 +521,9 @@ const validated = punchSchema.parse(body) // Throws if invalid
 - Shared branding/logo between sites
 - Cross-link: app can link back to marketing for support/help
 
-#### 5. Set Up Testing Framework
-**Status**: Not started
-**Impact**: Code quality & confidence
-**Effort**: Large (4-6 hours)
-
-**Tasks**:
-- [ ] Install Vitest: `npm install -D vitest @vitejs/plugin-react`
-- [ ] Install React Testing Library: `npm install -D @testing-library/react @testing-library/jest-dom`
-- [ ] Configure `vitest.config.ts`
-- [ ] Write tests for `src/lib/rate-limit.ts`
-- [ ] Write tests for punch validation logic
-- [ ] Write tests for reward code generation
-- [ ] Set up test database or mocks for Supabase
-- [ ] Add test script to `package.json`
-- [ ] Write E2E tests with Playwright (optional)
-
-**Target Coverage**:
-- Critical: `/api/punch` route (punch logic, validation)
-- Critical: `/api/business/validate-reward` (reward validation)
-- Important: Rate limiting logic
-- Important: Utility functions
-
-#### 6. Add Proper TypeScript Types
-**Status**: Not started
-**Impact**: Type safety
-**Effort**: Medium (3-4 hours)
-
-**Problem**:
-- 84+ instances of `any` type
-- No centralized type definitions
-- Missing Supabase generated types
-
-**Tasks**:
-- [ ] Generate types from Supabase: `npx supabase gen types typescript --project-id <id> > src/types/database.ts`
-- [ ] Create `src/types/index.ts` for app types
-- [ ] Define types: `Event`, `Establishment`, `Tag`, `Card`, `Punch`, `Reward`
-- [ ] Replace `any` in API routes
-- [ ] Replace `any` in client components
-- [ ] Add strict type checking for Supabase queries
-
-#### 7. Customer Dashboard
-**Status**: Not started
-**Impact**: Missing core feature
-**Effort**: Large (6-8 hours)
-
-**Problem**:
-- Customers can't view their cards
-- No history of past rewards
-- Poor user experience
-
-**Tasks**:
-- [ ] Create `/app/customer/dashboard/page.tsx`
-- [ ] Create API route: `/api/customer/cards` (list active cards)
-- [ ] Create API route: `/api/customer/rewards` (list rewards)
-- [ ] Design & build card list UI
-- [ ] Design & build reward history UI
-- [ ] Add navigation from tap page
-- [ ] Show progress bars for active cards
-- [ ] Add filters: active/completed
-- [ ] Mobile-responsive design
-
 ### 🟢 Low Priority (Nice to Have)
 
-#### 8. Centralized Error Logging
+#### 5. Centralized Error Logging
 **Status**: Not started
 **Effort**: Small
 
@@ -468,7 +533,7 @@ const validated = punchSchema.parse(body) // Throws if invalid
 - [ ] Remove console.log statements
 - [ ] Use proper logging library (Pino)
 
-#### 9. Business Analytics Dashboard
+#### 6. Business Analytics Dashboard
 **Status**: Not started
 **Effort**: Large
 
@@ -478,7 +543,7 @@ const validated = punchSchema.parse(body) // Throws if invalid
 - [ ] Export functionality (CSV)
 - [ ] Date range filters
 
-#### 10. Upgrade Rate Limiting to Redis
+#### 7. Upgrade Rate Limiting to Redis
 **Status**: Not started
 **Effort**: Medium
 
@@ -492,7 +557,7 @@ const validated = punchSchema.parse(body) // Throws if invalid
 - [ ] Add Redis connection config
 - [ ] Test in production
 
-#### 11. Add API Documentation
+#### 8. Add API Documentation
 **Status**: Not started
 **Effort**: Medium
 
@@ -502,7 +567,7 @@ const validated = punchSchema.parse(body) // Throws if invalid
 - [ ] Add request/response examples
 - [ ] Generate API docs page
 
-#### 12. Improve Error Boundaries
+#### 9. Improve Error Boundaries
 **Status**: Not started
 **Effort**: Small
 
@@ -511,7 +576,7 @@ const validated = punchSchema.parse(body) // Throws if invalid
 - [ ] Create custom error pages
 - [ ] Graceful error handling in components
 
-#### 13. Performance Optimization
+#### 10. Performance Optimization
 **Status**: Not started
 **Effort**: Medium
 
@@ -567,19 +632,29 @@ Most common issues:
 ## 📝 Notes for Future Development
 
 ### When Adding New API Routes
-1. Add rate limiting (import from `src/lib/rate-limit.ts`)
-2. Add input validation with Zod
-3. Use proper Supabase client (Server for auth, Service for DB)
-4. Return consistent error format
-5. Add TypeScript types
-6. Consider adding tests
+1. **Add rate limiting** (import from `src/lib/rate-limit.ts`)
+2. **Add Zod validation** - Create schema in `src/lib/validations.ts`, use `safeParse()` and `formatValidationError()`
+3. **Use proper Supabase client** (Server Client for auth check, Service Client for DB operations)
+4. **Return consistent error format** - Use NextResponse.json with proper status codes
+5. **Add TypeScript types** - Avoid `any`, use proper types
+6. **Consider adding tests** - Especially for critical business logic
 
 ### When Adding New Features
-1. Update this TODO list
-2. Update README if user-facing
-3. Consider mobile responsiveness
-4. Test with rate limiting enabled
-5. Ensure proper error handling
+1. **Update CLAUDE.md backlog** - Mark tasks complete, add new discoveries
+2. **Update README** if user-facing
+3. **Use toast notifications** - Never use alert() or confirm()
+4. **Use Modal component** for dialogs - Import from `@/components/Modal`
+5. **Consider mobile responsiveness** - Test on small screens
+6. **Test with rate limiting enabled** - Ensure limits are appropriate
+7. **Ensure proper error handling** - User-friendly messages, log errors
+
+### When Creating Client Components
+1. **Use `'use client'` directive** at top of file
+2. **Import toast utilities** for user notifications
+3. **Use useConfirm hook** for confirmations instead of browser confirm()
+4. **Validate user input** on client side (in addition to server-side Zod validation)
+5. **Show loading states** - Use Sonner's loading toast or skeleton screens
+6. **Handle errors gracefully** - Display user-friendly error messages
 
 ### Database Changes
 - Always use Supabase migrations
@@ -592,3 +667,54 @@ Most common issues:
 - Only mark as 'use client' when necessary
 - Implement proper loading states
 - Consider caching for expensive operations
+
+---
+
+## 🔧 Development Workflow
+
+### Version Control (GitHub)
+**Repository**: https://github.com/themichaelgt/virtual-punch-card.git
+
+**Workflow**:
+```bash
+# Check status
+git status
+
+# Stage changes
+git add .
+
+# Commit changes
+git commit -m "Description of changes"
+
+# Push to GitHub
+git push origin main
+
+# Pull latest changes
+git pull origin main
+```
+
+**Best Practices**:
+- Commit frequently with clear, descriptive messages
+- Pull before starting work to avoid conflicts
+- Use feature branches for large changes
+- Never commit sensitive data (.env files, API keys, tokens)
+- Review changes with `git diff` before committing
+
+### Code Quality Checklist
+Before committing code, ensure:
+- ✅ No ESLint errors (warnings acceptable)
+- ✅ Build succeeds (`npm run build`)
+- ✅ All new API routes have Zod validation
+- ✅ No alert() or confirm() calls (use toast/ConfirmDialog)
+- ✅ Toast notifications for user feedback
+- ✅ Proper error handling with user-friendly messages
+- ✅ TypeScript types (avoid `any`)
+- ✅ Mobile responsiveness tested
+- ✅ No console.log in production code (debug logs removed)
+
+### Deployment Notes
+- Application is configured for Vercel deployment
+- Environment variables must be set in deployment platform
+- Supabase connection requires proper CORS and RLS policies
+- Rate limiting uses in-memory storage (resets on deployment)
+- Consider upgrading to Redis-based rate limiting for production
