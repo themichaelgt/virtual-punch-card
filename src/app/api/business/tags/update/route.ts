@@ -4,6 +4,14 @@ import { createServerSupabase } from '@/lib/supabase-server'
 import { updateTagSchema, formatValidationError } from '@/lib/validations'
 import { NextRequest, NextResponse } from 'next/server'
 
+interface TagWithEstablishment {
+  id: string
+  event_id: string
+  events: {
+    establishment_id: string
+  }
+}
+
 const serviceSupabase = createServiceSupabase()
 
 export async function POST(request: NextRequest) {
@@ -56,7 +64,8 @@ export async function POST(request: NextRequest) {
       .eq('id', tagId)
       .single()
 
-    if (!tag || !tag.events || (tag.events as any).establishment_id !== establishment.id) {
+    const typedTag = tag as unknown as TagWithEstablishment | null
+    if (!typedTag || !typedTag.events || typedTag.events.establishment_id !== establishment.id) {
       return NextResponse.json({
         message: 'Tag not found or access denied'
       }, { status: 404 })

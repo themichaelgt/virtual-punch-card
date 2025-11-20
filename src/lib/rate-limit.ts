@@ -1,24 +1,40 @@
 // src/lib/rate-limit.ts
 import { NextRequest, NextResponse } from 'next/server'
+import { Ratelimit } from '@upstash/ratelimit'
+import { Redis } from '@upstash/redis'
 
+// Check if Redis credentials are configured
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN
+const isRedisConfigured = !!redisUrl && !!redisToken
+
+// Redis client (only initialized if configured)
+const redis = isRedisConfigured
+  ? new Redis({
+    url: redisUrl!,
+    token: redisToken!,
+  })
+  : null
+
+// In-memory store for fallback
 interface RateLimitStore {
   count: number
   resetAt: number
 }
 
-// In-memory store for rate limiting
-// Note: This will reset on server restart. For production, consider Redis or Upstash
-const store = new Map<string, RateLimitStore>()
+const memoryStore = new Map<string, RateLimitStore>()
 
-// Cleanup old entries every 5 minutes to prevent memory leaks
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, value] of store.entries()) {
-    if (now > value.resetAt) {
-      store.delete(key)
+// Cleanup old memory entries every 5 minutes
+if (!isRedisConfigured) {
+  setInterval(() => {
+    const now = Date.now()
+    for (const [key, value] of memoryStore.entries()) {
+      if (now > value.resetAt) {
+        memoryStore.delete(key)
+      }
     }
-  }
-}, 5 * 60 * 1000)
+  }, 5 * 60 * 1000)
+}
 
 export interface RateLimitConfig {
   /**
@@ -40,21 +56,19 @@ export interface RateLimitConfig {
 
 /**
  * Rate limiter middleware for Next.js API routes
- *
- * @example
- * ```ts
- * const limiter = rateLimit({ limit: 10, windowSeconds: 60 })
- *
- * export async function POST(request: NextRequest) {
- *   const rateLimitResult = await limiter(request)
- *   if (rateLimitResult) return rateLimitResult
- *
- *   // Your route logic here
- * }
- * ```
+ * Uses Upstash Redis if configured, otherwise falls back to in-memory store
  */
 export function rateLimit(config: RateLimitConfig) {
   const { limit, windowSeconds, identifier: customIdentifier } = config
+
+  // Create Upstash Ratelimit instance if Redis is configured
+  const ratelimit = isRedisConfigured
+    ? new Ratelimit({
+      redis: redis!,
+      limiter: Ratelimit.slidingWindow(limit, `${windowSeconds} s`),
+      analytics: true,
+    })
+    : null
 
   return async (request: NextRequest): Promise<NextResponse | null> => {
     // Get identifier (IP address or custom)
@@ -62,12 +76,48 @@ export function rateLimit(config: RateLimitConfig) {
       ? customIdentifier(request)
       : getClientIdentifier(request)
 
+    const key = isRedisConfigured
+      ? identifier // Upstash handles namespacing
+      : `${identifier}:${request.nextUrl.pathname}`
+
+    // REDIS IMPLEMENTATION
+    if (isRedisConfigured && ratelimit) {
+      try {
+        const { success, limit: rLimit, reset, remaining } = await ratelimit.limit(key)
+
+        if (!success) {
+          const retryAfter = Math.ceil((reset - Date.now()) / 1000)
+          return NextResponse.json(
+            {
+              error: 'Too many requests',
+              message: `Rate limit exceeded. Please try again in ${retryAfter} seconds.`,
+              retryAfter
+            },
+            {
+              status: 429,
+              headers: {
+                'X-RateLimit-Limit': rLimit.toString(),
+                'X-RateLimit-Remaining': remaining.toString(),
+                'X-RateLimit-Reset': reset.toString(),
+                'Retry-After': retryAfter.toString()
+              }
+            }
+          )
+        }
+        return null
+      } catch (error) {
+        console.error('Rate limit error:', error)
+        // Fail open if Redis fails
+        return null
+      }
+    }
+
+    // IN-MEMORY FALLBACK IMPLEMENTATION
     const now = Date.now()
     const windowMs = windowSeconds * 1000
-    const key = `${identifier}:${request.nextUrl.pathname}`
 
     // Get or create rate limit entry
-    let entry = store.get(key)
+    let entry = memoryStore.get(key)
 
     if (!entry || now > entry.resetAt) {
       // Create new entry or reset expired one
@@ -75,9 +125,7 @@ export function rateLimit(config: RateLimitConfig) {
         count: 1,
         resetAt: now + windowMs
       }
-      store.set(key, entry)
-
-      // Request is allowed
+      memoryStore.set(key, entry)
       return null
     }
 
@@ -105,8 +153,6 @@ export function rateLimit(config: RateLimitConfig) {
 
     // Increment counter
     entry.count++
-
-    // Request is allowed
     return null
   }
 }
@@ -139,7 +185,7 @@ function getClientIdentifier(request: NextRequest): string {
 /**
  * Rate limit by user ID (for authenticated endpoints)
  */
-export function getUserIdentifier(userId: string, request: NextRequest): string {
+export function getUserIdentifier(userId: string): string {
   return `user:${userId}`
 }
 

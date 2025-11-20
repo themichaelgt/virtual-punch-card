@@ -103,7 +103,7 @@ export default function BusinessLoginPage() {
 
         <div className="mt-6 text-center">
           <p className="text-sm text-gray-600">
-            Don't have a business account?{' '}
+            Don&apos;t have a business account?{' '}
             <button
               onClick={() => router.push('/business/signup')}
               className="text-indigo-600 hover:text-indigo-500 font-medium"

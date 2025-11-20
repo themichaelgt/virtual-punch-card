@@ -4,9 +4,68 @@ import { createServerSupabase } from '@/lib/supabase-server'
 import { rateLimiters } from '@/lib/rate-limit'
 import { punchSchema, formatValidationError } from '@/lib/validations'
 import { NextRequest, NextResponse } from 'next/server'
+import { EventRules } from '@/types/database'
+
+interface TagWithEvent {
+  id: string
+  event_id: string
+  status: string
+  events: {
+    id: string
+    name: string
+    status: string
+    rules_json: EventRules
+  }
+}
 
 const serviceSupabase = createServiceSupabase()
 
+/**
+ * @swagger
+ * /api/punch:
+ *   post:
+ *     summary: Record a punch for a user
+ *     description: Validates the token and records a punch for the user. Creates a new card if necessary.
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 description: The NFC tag token
+ *               location:
+ *                 type: object
+ *                 properties:
+ *                   lat:
+ *                     type: number
+ *                   lng:
+ *                     type: number
+ *     responses:
+ *       200:
+ *         description: Punch recorded successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                 card:
+ *                   type: object
+ *                 punch:
+ *                   type: object
+ *       400:
+ *         description: Invalid request or validation error
+ *       401:
+ *         description: Authentication required
+ *       429:
+ *         description: Rate limit exceeded
+ */
 export async function POST(request: NextRequest) {
   try {
     // Apply rate limiting (30 requests per minute per IP)
@@ -18,9 +77,9 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
-      return NextResponse.json({ 
-        status: 'error', 
-        message: 'Please sign in to continue' 
+      return NextResponse.json({
+        status: 'error',
+        message: 'Please sign in to continue'
       }, { status: 401 })
     }
 
@@ -63,7 +122,8 @@ export async function POST(request: NextRequest) {
       }, { status: 404 })
     }
 
-    const event = tagData.events as any
+    const typedTagData = tagData as unknown as TagWithEvent
+    const event = typedTagData.events
 
     // Verify tag is active
     if (tagData.status !== 'active') {
@@ -84,12 +144,12 @@ export async function POST(request: NextRequest) {
     // Ensure user exists in our users table
     const { error: userUpsertError } = await serviceSupabase
       .from('users')
-      .upsert({ 
-        id: userId, 
+      .upsert({
+        id: userId,
         email: user.email!,
         name: user.user_metadata?.full_name || 'User'
-      }, { 
-        onConflict: 'id' 
+      }, {
+        onConflict: 'id'
       })
 
     if (userUpsertError) {
@@ -98,7 +158,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Get or create user card (check for ANY status first)
-    let { data: existingCard, error: existingCardError } = await serviceSupabase
+    const { data: existingCard, error: existingCardError } = await serviceSupabase
       .from('cards')
       .select('*')
       .eq('user_id', userId)
@@ -126,31 +186,31 @@ export async function POST(request: NextRequest) {
       if (createError) {
         console.error('Card creation error:', createError)
         console.error('Card creation details:', JSON.stringify(createError, null, 2))
-        return NextResponse.json({ 
-          status: 'error', 
-          message: `Failed to create card: ${createError.message || 'Unknown error'}` 
+        return NextResponse.json({
+          status: 'error',
+          message: `Failed to create card: ${createError.message || 'Unknown error'}`
         }, { status: 500 })
       }
       card = newCard
     } else {
       console.error('Card query error:', existingCardError)
-      return NextResponse.json({ 
-        status: 'error', 
-        message: 'Database error occurred' 
+      return NextResponse.json({
+        status: 'error',
+        message: 'Database error occurred'
       }, { status: 500 })
     }
 
     if (!card) {
-      return NextResponse.json({ 
-        status: 'error', 
-        message: 'Card error' 
+      return NextResponse.json({
+        status: 'error',
+        message: 'Card error'
       }, { status: 500 })
     }
 
     // Check if already completed
     if (card.status === 'completed') {
       const rules = event.rules_json
-      
+
       // Check if repeat cards are allowed
       if (rules.allow_repeat) {
         // Reset the card for a new round
@@ -165,9 +225,9 @@ export async function POST(request: NextRequest) {
 
         if (resetError) {
           console.error('Card reset error:', resetError)
-          return NextResponse.json({ 
-            status: 'error', 
-            message: 'Failed to reset card' 
+          return NextResponse.json({
+            status: 'error',
+            message: 'Failed to reset card'
           }, { status: 500 })
         }
 
@@ -177,9 +237,9 @@ export async function POST(request: NextRequest) {
         card.completed_at = null
       } else {
         // Repeat not allowed
-        return NextResponse.json({ 
-          status: 'error', 
-          message: 'This punch card is already completed! Repeat cards are not allowed for this event.' 
+        return NextResponse.json({
+          status: 'error',
+          message: 'This punch card is already completed! Repeat cards are not allowed for this event.'
         }, { status: 400 })
       }
     }
@@ -190,7 +250,7 @@ export async function POST(request: NextRequest) {
     // Get user's location from request if available
     // const userLocation = body?.location // { latitude, longitude }
 
-    const violations = await validateRules(rules, userId, tagData.event_id, card)
+    const violations = await validateRules(rules, userId, tagData.event_id)
 
     if (violations.length > 0) {
       return NextResponse.json({
@@ -214,9 +274,9 @@ export async function POST(request: NextRequest) {
 
     if (punchError) {
       console.error('Punch creation error:', punchError)
-      return NextResponse.json({ 
-        status: 'error', 
-        message: 'Failed to record punch' 
+      return NextResponse.json({
+        status: 'error',
+        message: 'Failed to record punch'
       }, { status: 500 })
     }
 
@@ -235,37 +295,37 @@ export async function POST(request: NextRequest) {
 
     if (updateError) {
       console.error('Card update error:', updateError)
-      return NextResponse.json({ 
-        status: 'error', 
-        message: 'Failed to update progress' 
+      return NextResponse.json({
+        status: 'error',
+        message: 'Failed to update progress'
       }, { status: 500 })
     }
 
     // Return result
-    return isCompleted 
+    return isCompleted
       ? NextResponse.json({
-          status: 'completed' as const,
-          reward: await generateReward(card.id, tagData.event_id, userId)
-        })
+        status: 'completed' as const,
+        reward: await generateReward(card.id, tagData.event_id, userId)
+      })
       : NextResponse.json({
-          status: 'punched' as const,
-          progress: newProgress,
-          remaining: rules.target_punches - newProgress
-        })
+        status: 'punched' as const,
+        progress: newProgress,
+        remaining: rules.target_punches - newProgress
+      })
 
   } catch (error) {
     console.error('Punch API error:', error)
-    return NextResponse.json({ 
-      status: 'error', 
-      message: 'Server error occurred' 
+    return NextResponse.json({
+      status: 'error',
+      message: 'Server error occurred'
     }, { status: 500 })
   }
 }
 
 async function generateReward(cardId: string, eventId: string, userId: string) {
   const rewardCode = Math.random().toString(36).substring(2, 10).toUpperCase()
-  
-  const { data: reward, error } = await serviceSupabase
+
+  const { error } = await serviceSupabase
     .from('rewards')
     .insert({
       card_id: cardId,
@@ -287,16 +347,15 @@ async function generateReward(cardId: string, eventId: string, userId: string) {
 }
 
 async function validateRules(
-  rules: any, 
-  userId: string, 
-  eventId: string, 
-  card: any
-): Promise<Array<{type: string, message: string, next_eligible_at?: string}>> {
+  rules: EventRules,
+  userId: string,
+  eventId: string
+): Promise<Array<{ type: string, message: string, next_eligible_at?: string }>> {
   const violations = []
   const now = new Date()
 
   // Cooldown check
-  if (rules.cooldown_hours > 0) {
+  if (rules.cooldown_hours && rules.cooldown_hours > 0) {
     const { data: lastPunch } = await serviceSupabase
       .from('punches')
       .select('timestamp')
@@ -308,8 +367,8 @@ async function validateRules(
 
     if (lastPunch) {
       const cooldownEnd = new Date(lastPunch.timestamp)
-      cooldownEnd.setHours(cooldownEnd.getHours() + rules.cooldown_hours)
-      
+      cooldownEnd.setHours(cooldownEnd.getHours() + (rules.cooldown_hours || 0))
+
       if (now < cooldownEnd) {
         const minutesLeft = Math.ceil((cooldownEnd.getTime() - now.getTime()) / (1000 * 60))
         violations.push({
@@ -322,10 +381,10 @@ async function validateRules(
   }
 
   // Daily limit check
-  if (rules.max_punches_per_day > 0) {
+  if (rules.max_punches_per_day && rules.max_punches_per_day > 0) {
     const todayStart = new Date()
     todayStart.setHours(0, 0, 0, 0)
-    
+
     const { data: todayPunches } = await serviceSupabase
       .from('punches')
       .select('id')
@@ -336,7 +395,7 @@ async function validateRules(
     if (todayPunches && todayPunches.length >= rules.max_punches_per_day) {
       const tomorrow = new Date(todayStart)
       tomorrow.setDate(tomorrow.getDate() + 1)
-      
+
       violations.push({
         type: 'daily_limit',
         message: `Daily limit reached (${rules.max_punches_per_day} punches per day)`,

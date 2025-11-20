@@ -1,10 +1,11 @@
 // src/app/tap/page.tsx
 'use client'
 
-import { useEffect, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
 import { createClientSupabase } from '@/lib/supabase'
-import { showError, showInfo } from '@/lib/toast'
+import { showError } from '@/lib/toast'
+import { User } from '@supabase/supabase-js'
 
 interface PunchResponse {
   status: 'punched' | 'completed' | 'error'
@@ -15,13 +16,13 @@ interface PunchResponse {
   next_eligible_at?: string
 }
 
-export default function TapPage() {
+function TapPageContent() {
   const searchParams = useSearchParams()
   const token = searchParams.get('token')
-  
+
   const [loading, setLoading] = useState(true)
   const [result, setResult] = useState<PunchResponse | null>(null)
-  const [user, setUser] = useState<any>(null)
+  const [user, setUser] = useState<User | null>(null)
   const [authLoading, setAuthLoading] = useState(false)
   const [emailSent, setEmailSent] = useState(false)
   const supabase = createClientSupabase()
@@ -75,6 +76,7 @@ export default function TapPage() {
     })
 
     return () => subscription.unsubscribe()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token])
 
   const attemptPunch = async () => {
@@ -102,7 +104,7 @@ export default function TapPage() {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude
           }
-        } catch (geoError) {
+        } catch {
           console.log('Location access denied or unavailable')
         }
       }
@@ -116,7 +118,7 @@ export default function TapPage() {
 
       const data: PunchResponse = await response.json()
       setResult(data)
-    } catch (error) {
+    } catch {
       setResult({
         status: 'error',
         message: 'Network error occurred'
@@ -235,7 +237,7 @@ export default function TapPage() {
           <>
             <div className="text-6xl mb-4">🎉</div>
             <h1 className="text-2xl font-bold text-green-600 mb-2">Congratulations!</h1>
-            <p className="text-gray-600 mb-6">You've completed your punch card!</p>
+            <p className="text-gray-600 mb-6">You&apos;ve completed your punch card!</p>
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <p className="font-mono text-lg font-bold">{result.reward?.code}</p>
               <p className="text-sm text-gray-500">Show this code to redeem your reward</p>
@@ -275,14 +277,38 @@ export default function TapPage() {
           <p className="text-sm text-gray-500">
             Signed in as: {user.email}
           </p>
-          <button 
-            onClick={() => supabase.auth.signOut()}
-            className="text-indigo-600 hover:text-indigo-500 text-sm font-medium"
-          >
-            Sign out
-          </button>
+          <div className="flex gap-3 justify-center">
+            <a
+              href="/customer/dashboard"
+              className="text-gray-600 hover:text-indigo-600 text-sm font-medium"
+            >
+              View My Cards
+            </a>
+            <span className="text-gray-300">•</span>
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="text-indigo-600 hover:text-indigo-500 text-sm font-medium"
+            >
+              Sign out
+            </button>
+          </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function TapPage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    }>
+      <TapPageContent />
+    </Suspense>
   )
 }

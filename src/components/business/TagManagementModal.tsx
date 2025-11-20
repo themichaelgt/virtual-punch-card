@@ -4,6 +4,7 @@
 import { useState, useEffect } from 'react'
 import { Modal } from '../Modal'
 import { showSuccess } from '@/lib/toast'
+import { Tag } from '@/types/database'
 
 interface TagManagementModalProps {
   eventId: string
@@ -12,7 +13,7 @@ interface TagManagementModalProps {
 
 export function TagManagementModal({ eventId, onClose }: TagManagementModalProps) {
   const [loading, setLoading] = useState(true)
-  const [tags, setTags] = useState<any[]>([])
+  const [tags, setTags] = useState<Tag[]>([])
 
   useEffect(() => {
     const loadTags = async () => {
@@ -50,14 +51,14 @@ export function TagManagementModal({ eventId, onClose }: TagManagementModalProps
       ) : (
         <div className="space-y-4">
           <p className="text-sm text-gray-600">
-            Program these URLs onto your NFC tags. When customers tap the tags, they'll be taken to your punch card.
+            Program these URLs onto your NFC tags. When customers tap the tags, they&apos;ll be taken to your punch card.
           </p>
 
-          {tags.map((tag) => (
+          {tags.map((tag, index) => (
             <div key={tag.id} className="border border-gray-200 rounded-lg p-4">
               <div className="flex justify-between items-center">
                 <div>
-                  <h4 className="font-medium text-gray-900">{tag.label}</h4>
+                  <h4 className="font-medium text-gray-900">Tag #{index + 1}</h4>
                   <p className="text-sm text-gray-500 font-mono">
                     {typeof window !== 'undefined' && `${window.location.origin}/t/${tag.token}`}
                   </p>
@@ -74,7 +75,7 @@ export function TagManagementModal({ eventId, onClose }: TagManagementModalProps
 
           {tags.length === 0 && (
             <div className="text-center py-8 text-gray-500">
-              No tags assigned to this campaign yet. Click "Claim Tags" to assign tags from your inventory.
+              No tags assigned to this campaign yet. Click &quot;Claim Tags&quot; to assign tags from your inventory.
             </div>
           )}
         </div>

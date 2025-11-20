@@ -11,24 +11,24 @@ import { CreateEventModal } from '@/components/business/CreateEventModal'
 import { EditEventModal } from '@/components/business/EditEventModal'
 import { TagManagementModal } from '@/components/business/TagManagementModal'
 import { ClaimTagsModal } from '@/components/business/ClaimTagsModal'
+import type { Event as BaseEvent } from '@/types/database'
 
 interface Establishment {
   id: string
   name: string
-  profile_json: any
+  profile_json: Record<string, unknown> | null
 }
 
-interface Event {
-  id: string
-  name: string
-  description: string
-  rules_json: any
-  status: string
-  created_at: string
+interface Event extends BaseEvent {
   _count: {
     cards: number
     completed_cards: number
   }
+}
+
+interface Order {
+  id: string
+  status: string
 }
 
 export default function BusinessDashboard() {
@@ -51,7 +51,7 @@ export default function BusinessDashboard() {
     const loadDashboard = async () => {
       try {
         const { data: { user }, error: authError } = await supabase.auth.getUser()
-        
+
         if (authError || !user) {
           router.push('/business/login')
           return
@@ -122,7 +122,7 @@ export default function BusinessDashboard() {
       const response = await fetch('/api/business/orders')
       const data = await response.json()
       if (response.ok) {
-        const pending = data.orders.some((order: any) => 
+        const pending = (data.orders as Order[]).some((order) =>
           order.status === 'pending' || order.status === 'fulfilled' || order.status === 'shipped'
         )
         setHasPendingOrder(pending)
@@ -293,6 +293,12 @@ export default function BusinessDashboard() {
                 Manage Tags
               </button>
               <button
+                onClick={() => router.push('/business/analytics')}
+                className="px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white rounded-md text-sm font-medium"
+              >
+                Analytics
+              </button>
+              <button
                 onClick={() => router.push('/business/register-tag')}
                 className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-md text-sm font-medium"
               >
@@ -351,7 +357,7 @@ export default function BusinessDashboard() {
               <div className="ml-3 flex-1">
                 <h3 className="text-sm font-medium text-yellow-800">Order In Progress</h3>
                 <p className="mt-1 text-sm text-yellow-700">
-                  Your tag order is being processed. You'll be able to register tags once they arrive.
+                  Your tag order is being processed. You&apos;ll be able to register tags once they arrive.
                 </p>
                 <div className="mt-3">
                   <button
@@ -403,13 +409,12 @@ export default function BusinessDashboard() {
             <button
               onClick={() => availableTags > 0 ? setShowCreateEvent(true) : router.push('/business/order-tags')}
               disabled={availableTags === 0 && hasPendingOrder}
-              className={`px-4 py-2 rounded-md text-sm font-medium ${
-                availableTags > 0
+              className={`px-4 py-2 rounded-md text-sm font-medium ${availableTags > 0
                   ? 'bg-indigo-600 hover:bg-indigo-700 text-white'
                   : hasPendingOrder
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-blue-600 hover:bg-blue-700 text-white'
+                }`}
               title={availableTags === 0 && !hasPendingOrder ? 'Order tags first' : availableTags === 0 ? 'Wait for order to arrive' : ''}
             >
               {availableTags === 0 && !hasPendingOrder ? 'Order Tags First' : 'Create Campaign'}
@@ -424,7 +429,7 @@ export default function BusinessDashboard() {
                   No campaigns yet
                 </h3>
                 <p className="text-gray-500 mb-4">
-                  {availableTags === 0 
+                  {availableTags === 0
                     ? 'Order NFC tags to create your first punch card campaign.'
                     : 'Create your first punch card campaign to get started.'
                   }
@@ -455,17 +460,16 @@ export default function BusinessDashboard() {
                         <h3 className="font-medium text-gray-900">{event.name}</h3>
                         <p className="text-sm text-gray-500">{event.description}</p>
                       </div>
-                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                        event.status === 'active' 
-                          ? 'bg-green-100 text-green-800' 
+                      <span className={`px-2 py-1 text-xs font-medium rounded-full ${event.status === 'active'
+                          ? 'bg-green-100 text-green-800'
                           : event.status === 'paused'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
                         {event.status}
                       </span>
                     </div>
-                    
+
                     <div className="flex items-center justify-between text-sm text-gray-600 mb-3">
                       <div>
                         Requirement: {event.rules_json.target_punches} punches
@@ -542,7 +546,7 @@ export default function BusinessDashboard() {
         </div>
 
         {showCreateEvent && (
-          <CreateEventModal 
+          <CreateEventModal
             onClose={() => setShowCreateEvent(false)}
             onSuccess={() => {
               setShowCreateEvent(false)
@@ -552,7 +556,7 @@ export default function BusinessDashboard() {
         )}
 
         {editingEvent && (
-          <EditEventModal 
+          <EditEventModal
             event={editingEvent}
             onClose={() => setEditingEvent(null)}
             onSuccess={() => {
@@ -563,14 +567,14 @@ export default function BusinessDashboard() {
         )}
 
         {selectedEventForTags && (
-          <TagManagementModal 
+          <TagManagementModal
             eventId={selectedEventForTags}
             onClose={() => setSelectedEventForTags(null)}
           />
         )}
 
         {claimingTags && (
-          <ClaimTagsModal 
+          <ClaimTagsModal
             eventId={claimingTags}
             availableTags={availableTags}
             onClose={() => setClaimingTags(null)}

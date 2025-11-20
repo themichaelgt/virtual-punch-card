@@ -4,18 +4,7 @@
 import { useState } from 'react'
 import { Modal } from '../Modal'
 import { showError } from '@/lib/toast'
-
-interface Event {
-  id: string
-  name: string
-  description: string
-  rules_json: {
-    target_punches: number
-    cooldown_hours: number
-    max_punches_per_day: number
-    allow_repeat: boolean
-  }
-}
+import type { Event } from '@/types/database'
 
 interface EditEventModalProps {
   event: Event
@@ -29,8 +18,8 @@ export function EditEventModal({ event, onClose, onSuccess }: EditEventModalProp
     name: event.name,
     description: event.description || '',
     target_punches: event.rules_json.target_punches,
-    cooldown_hours: event.rules_json.cooldown_hours,
-    max_punches_per_day: event.rules_json.max_punches_per_day,
+    cooldown_hours: event.rules_json.cooldown_hours || 0,
+    max_punches_per_day: event.rules_json.max_punches_per_day || 0,
     allow_repeat: event.rules_json.allow_repeat !== undefined ? event.rules_json.allow_repeat : true
   })
 

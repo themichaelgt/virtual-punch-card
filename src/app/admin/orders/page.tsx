@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { showError } from '@/lib/toast'
 import { useConfirm } from '@/components/ConfirmDialog'
+import { Tag } from '@/types/database'
 
 interface Order {
   id: string
@@ -26,21 +26,18 @@ interface Order {
   establishments: {
     id: string
     name: string
-    profile_json: any
+    profile_json: Record<string, unknown> | null
   }
 }
 
 export default function AdminOrdersPage() {
-  const router = useRouter()
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [filter, setFilter] = useState<'all' | 'pending' | 'shipped'>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const [fulfilling, setFulfilling] = useState<string | null>(null)
-  const [generatedCodes, setGeneratedCodes] = useState<string[] | null>(null)
-  const [viewingOrderTags, setViewingOrderTags] = useState<{orderId: string, tags: any[]} | null>(null)
-  const [loadingTags, setLoadingTags] = useState(false)
+  const [viewingOrderTags, setViewingOrderTags] = useState<{orderId: string, tags: Tag[]} | null>(null)
   const [shippingOrderId, setShippingOrderId] = useState<string | null>(null)
   const [trackingNumber, setTrackingNumber] = useState('')
 
@@ -51,20 +48,17 @@ export default function AdminOrdersPage() {
   }, [])
 
   const loadOrderTags = async (orderId: string) => {
-    setLoadingTags(true)
     try {
       const response = await fetch(`/api/admin/orders/${orderId}/tags`)
       const data = await response.json()
-      
+
       if (response.ok) {
         setViewingOrderTags({ orderId, tags: data.tags })
       } else {
         showError('Failed to load tags')
       }
-    } catch (err) {
+    } catch {
       showError('Failed to load tags')
-    } finally {
-      setLoadingTags(false)
     }
   }
 
@@ -137,38 +131,39 @@ export default function AdminOrdersPage() {
     }
   }
 
-  const printCodes = () => {
-  const printWindow = window.open('', '', 'width=800,height=600')
-  if (!printWindow) return
+  // Utility function for printing activation codes (currently unused)
+  // const printCodes = () => {
+  //   const printWindow = window.open('', '', 'width=800,height=600')
+  //   if (!printWindow) return
 
-  printWindow.document.write(`
-    <html>
-      <head>
-        <title>Activation Codes and NFC URLs</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 20px; }
-          .code-block { margin: 20px 0; padding: 15px; border: 2px solid #ccc; page-break-inside: avoid; }
-          .label { font-size: 12px; color: #666; margin-bottom: 5px; }
-          .activation-code { font-size: 24px; font-weight: bold; font-family: monospace; margin-bottom: 10px; }
-          .nfc-url { font-size: 14px; font-family: monospace; color: #0066cc; }
-        </style>
-      </head>
-      <body>
-        <h1>NFC Tag Programming Sheet</h1>
-        ${generatedCodes?.map((code, i) => `
-          <div class="code-block">
-            <div class="label">Tag ${i + 1} - Activation Code (print on sticker):</div>
-            <div class="activation-code">${code}</div>
-            <div class="label">NFC URL (program into tag):</div>
-            <div class="nfc-url">${window.location.origin}/t/${code}</div>
-          </div>
-        `).join('')}
-      </body>
-    </html>
-  `)
-  printWindow.document.close()
-  printWindow.print()
-}
+  //   printWindow.document.write(`
+  //     <html>
+  //       <head>
+  //         <title>Activation Codes and NFC URLs</title>
+  //         <style>
+  //           body { font-family: Arial, sans-serif; padding: 20px; }
+  //           .code-block { margin: 20px 0; padding: 15px; border: 2px solid #ccc; page-break-inside: avoid; }
+  //           .label { font-size: 12px; color: #666; margin-bottom: 5px; }
+  //           .activation-code { font-size: 24px; font-weight: bold; font-family: monospace; margin-bottom: 10px; }
+  //           .nfc-url { font-size: 14px; font-family: monospace; color: #0066cc; }
+  //         </style>
+  //       </head>
+  //       <body>
+  //         <h1>NFC Tag Programming Sheet</h1>
+  //         ${generatedCodes?.map((code, i) => `
+  //           <div class="code-block">
+  //             <div class="label">Tag ${i + 1} - Activation Code (print on sticker):</div>
+  //             <div class="activation-code">${code}</div>
+  //             <div class="label">NFC URL (program into tag):</div>
+  //             <div class="nfc-url">${window.location.origin}/t/${code}</div>
+  //           </div>
+  //         `).join('')}
+  //       </body>
+  //     </html>
+  //   `)
+  //   printWindow.document.close()
+  //   printWindow.print()
+  // }
 
   const filteredOrders = orders
     .filter(order => {
@@ -331,7 +326,7 @@ export default function AdminOrdersPage() {
       <div className="space-y-4">
         {viewingOrderTags.tags.map((tag, index) => (
           <div key={index} className="border border-gray-200 rounded-lg p-4">
-            <div className="font-semibold text-gray-700 mb-3">{tag.label}</div>
+            <div className="font-semibold text-gray-700 mb-3">Tag #{index + 1}</div>
             <div className="grid grid-cols-1 gap-3">
               <div>
                 <div className="text-xs text-gray-500 mb-1">Activation Code (for sticker):</div>

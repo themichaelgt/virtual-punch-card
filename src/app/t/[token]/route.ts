@@ -1,6 +1,19 @@
 // src/app/t/[token]/route.ts
 import { createServiceSupabase } from '@/lib/supabase'
 import { NextRequest, NextResponse } from 'next/server'
+import { EventRules } from '@/types/database'
+
+interface TagWithEvent {
+  id: string
+  token: string
+  status: string
+  events: {
+    id: string
+    name: string
+    status: string
+    rules_json: EventRules
+  }
+}
 
 const supabase = createServiceSupabase()
 
@@ -33,7 +46,8 @@ export async function GET(
       return NextResponse.redirect(new URL('/?error=invalid_tag', request.url))
     }
 
-    const event = tag.events as any
+    const typedTag = tag as unknown as TagWithEvent
+    const event = typedTag.events
 
     if (event.status !== 'active') {
       return NextResponse.redirect(new URL('/?error=event_ended', request.url))

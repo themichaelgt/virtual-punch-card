@@ -181,7 +181,7 @@ export default function ValidateRewardPage() {
           <ol className="list-decimal list-inside space-y-2 text-blue-800">
             <li>Ask the customer to show their reward code</li>
             <li>Enter the code in the field above</li>
-            <li>Click "Validate Reward" to check if it's legitimate</li>
+            <li>Click &quot;Validate Reward&quot; to check if it&apos;s legitimate</li>
             <li>If valid, provide the reward and the code will be marked as redeemed</li>
             <li>If invalid or already used, inform the customer</li>
           </ol>

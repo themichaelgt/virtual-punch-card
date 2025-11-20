@@ -144,7 +144,7 @@ export default function RegisterTagPage() {
           <ol className="list-decimal list-inside space-y-2 text-blue-800">
             <li>Locate the activation code printed on your NFC tag sticker</li>
             <li>Enter the code exactly as shown (VPC-XXXX-XXXX format)</li>
-            <li>Click "Register Tag" to add it to your inventory</li>
+            <li>Click &quot;Register Tag&quot; to add it to your inventory</li>
             <li>Once registered, you can assign it to a campaign from the dashboard</li>
             <li>Repeat for each tag you purchased</li>
           </ol>

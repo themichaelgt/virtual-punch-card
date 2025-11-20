@@ -61,7 +61,12 @@ export async function PATCH(
     }
 
     const updateData = validation.data
-    const allowedFields: any = {}
+    const allowedFields: Partial<{
+      name: string
+      description: string | null
+      status: string
+      rules_json: Record<string, unknown>
+    }> = {}
 
     // Only allow specific fields to be updated
     if (updateData.name !== undefined) allowedFields.name = updateData.name

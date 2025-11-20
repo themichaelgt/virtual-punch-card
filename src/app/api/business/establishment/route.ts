@@ -1,11 +1,11 @@
 // src/app/api/business/establishment/route.ts
 import { createServiceSupabase } from '@/lib/supabase'
 import { createServerSupabase } from '@/lib/supabase-server'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 
 const serviceSupabase = createServiceSupabase()
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     // Get authenticated user
     const supabase = await createServerSupabase()

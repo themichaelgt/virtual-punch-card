@@ -11,7 +11,7 @@ interface ClaimTagsModalProps {
   onClaim: (quantity: number) => void
 }
 
-export function ClaimTagsModal({ eventId, availableTags, onClose, onClaim }: ClaimTagsModalProps) {
+export function ClaimTagsModal({ availableTags, onClose, onClaim }: ClaimTagsModalProps) {
   const [quantity, setQuantity] = useState(1)
 
   return (
@@ -47,7 +47,7 @@ export function ClaimTagsModal({ eventId, availableTags, onClose, onClaim }: Cla
         {availableTags === 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-sm text-red-800">
-              You don't have any available tags. Contact support to purchase more tags.
+              You don&apos;t have any available tags. Contact support to purchase more tags.
             </p>
           </div>
         )}

@@ -4,11 +4,9 @@
 import { useEffect, useState } from 'react'
 import { createClientSupabase } from '@/lib/supabase'
 import { useRouter } from 'next/navigation'
-import type { User } from '@supabase/supabase-js'
 
 export default function CompleteBusinessSignup() {
   const [loading, setLoading] = useState(true)
-  const [user, setUser] = useState<User | null>(null)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClientSupabase()
   const router = useRouter()
@@ -27,8 +25,6 @@ export default function CompleteBusinessSignup() {
       setLoading(false)
       return
     }
-
-    setUser(user)
 
     // Get stored business data from localStorage
     const storedData = localStorage.getItem('pendingBusinessData')

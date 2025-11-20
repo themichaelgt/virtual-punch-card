@@ -5,6 +5,25 @@ import { rateLimiters } from '@/lib/rate-limit'
 import { validateRewardSchema, formatValidationError } from '@/lib/validations'
 import { NextRequest, NextResponse } from 'next/server'
 
+interface RewardWithDetails {
+  id: string
+  code: string
+  redeemed_at: string | null
+  issued_at: string
+  user_id: string
+  event_id: string
+  events: {
+    id: string
+    name: string
+    establishment_id: string
+  }
+  users: {
+    id: string
+    email: string
+    name: string | null
+  }
+}
+
 const serviceSupabase = createServiceSupabase()
 
 export async function POST(request: NextRequest) {
@@ -80,8 +99,10 @@ export async function POST(request: NextRequest) {
       }, { status: 200 })
     }
 
+    const typedReward = reward as unknown as RewardWithDetails
+
     // Verify the reward belongs to this establishment
-    if ((reward.events as any).establishment_id !== establishment.id) {
+    if (typedReward.events.establishment_id !== establishment.id) {
       return NextResponse.json({
         valid: false,
         message: 'This reward code is not for your business'
@@ -89,11 +110,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if already redeemed
-    if (reward.redeemed_at) {
-      return NextResponse.json({ 
+    if (typedReward.redeemed_at) {
+      return NextResponse.json({
         valid: false,
         message: 'This reward has already been redeemed',
-        redeemed_at: reward.redeemed_at
+        redeemed_at: typedReward.redeemed_at
       }, { status: 200 })
     }
 
@@ -118,11 +139,11 @@ export async function POST(request: NextRequest) {
       valid: true,
       message: 'Reward is valid! Marked as redeemed.',
       reward: {
-        code: reward.code,
-        event_name: (reward.events as any).name,
-        customer_email: (reward.users as any).email,
-        customer_name: (reward.users as any).name,
-        issued_at: reward.issued_at
+        code: typedReward.code,
+        event_name: typedReward.events.name,
+        customer_email: typedReward.users.email,
+        customer_name: typedReward.users.name,
+        issued_at: typedReward.issued_at
       }
     })
 
