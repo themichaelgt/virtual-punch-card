@@ -1,5 +1,5 @@
 // src/app/t/[token]/route.ts
-import { createServiceSupabase } from '@/lib/supabase'
+import { getCachedTag } from '@/lib/supabase-server'
 import { NextRequest, NextResponse } from 'next/server'
 import { EventRules } from '@/types/database'
 
@@ -15,8 +15,6 @@ interface TagWithEvent {
   }
 }
 
-const supabase = createServiceSupabase()
-
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ token: string }> }
@@ -25,24 +23,9 @@ export async function GET(
 
   try {
     // Verify the token exists and is active
-    const { data: tag, error: tagError } = await supabase
-      .from('tags')
-      .select(`
-        id,
-        token,
-        status,
-        events!inner(
-          id,
-          name,
-          status,
-          rules_json
-        )
-      `)
-      .eq('token', token)
-      .eq('status', 'active')
-      .single()
+    const tag = await getCachedTag(token)
 
-    if (tagError || !tag) {
+    if (!tag) {
       return NextResponse.redirect(new URL('/?error=invalid_tag', request.url))
     }
 

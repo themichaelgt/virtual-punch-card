@@ -472,6 +472,10 @@ Example: `import { createClientSupabase } from '@/lib/supabase'`
   - Installed `swagger-jsdoc` and `swagger-ui-react`
   - Created `/docs` page for interactive API documentation
   - Added JSDoc annotations to `/api/punch`
+- [x] **Performance Optimization** (2025-11-20)
+  - Configured `@next/bundle-analyzer` for build analysis
+  - Implemented `unstable_cache` for high-volume tag lookups (`/t/[token]`)
+  - Verified image usage (using emojis/CSS instead of heavy images)
 
 
 ### 🔴 High Priority (Do Next)
@@ -504,18 +508,6 @@ Example: `import { createClientSupabase } from '@/lib/supabase'`
 - [ ] Add React error boundaries to main layouts
 - [ ] Create custom error pages
 - [ ] Graceful error handling in components
-
-#### 6. Performance Optimization
-**Status**: Not started
-**Effort**: Medium
-
-**Tasks**:
-- [ ] Add caching strategy (React Query or SWR)
-- [ ] Optimize database queries
-- [ ] Add loading skeletons
-- [ ] Implement optimistic UI updates
-- [ ] Add Next.js Image optimization
-- [ ] Bundle analysis and code splitting
 
 ### 📋 Code Quality Improvements
 
